@@ -29,7 +29,7 @@ class RoutineListResult(BaseModel):
 class SetEntry(BaseModel):
     set_no: int
     reps: int
-    weight_kg: float  # raw stored value (kg); 0.0 = bodyweight / untracked
+    weight_kg: float  # raw stored value (kg); 0.0 = bodyweight OR never entered
     weight: float = Field(
         description="weight_kg in the response's weight_unit, rounded to 0.1"
     )

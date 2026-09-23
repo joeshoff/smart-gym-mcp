@@ -451,6 +451,11 @@ def get_workout_detail(
         )
         for ue_pk, sets in by_slot.items()
     ]
+    # No per-workout order is stored (Z_11EXERCISES has no ordering column), so use the
+    # current slot order: live slots first, then soft-deleted slots by their last ZINDEX.
+    exercises.sort(
+        key=lambda e: (e.slot_removed, e.index if e.index is not None else 1 << 30, e.ue_pk)
+    )
     warnings: list[str] = []
     if not exercises:
         warnings.append(

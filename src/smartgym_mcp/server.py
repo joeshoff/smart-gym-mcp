@@ -142,8 +142,8 @@ def smartgym_get_routine(ctx: Context, routine: str, history_depth: int = 5) -> 
     one WORKOUT (workout_pk), dated by the workout's local start date, and holds only
     the sets actually logged in that workout for this routine (the prescription is not
     history). Each set has reps, weight_kg (raw stored kg) and weight in `weight_unit`
-    (SmartGym's display unit; lb = round(kg / 0.45359237, 1)); 0 means
-    bodyweight/untracked. Also the latest session's top set and total volume (in
+    (SmartGym's display unit; lb = round(kg / 0.45359237, 1)); 0 means bodyweight
+    OR never entered (the data can't tell which). Also the latest session's top set and total volume (in
     weight_unit). Ambiguous names raise an error listing candidate z_pks.
     """
     app: AppContext = ctx.request_context.lifespan_context
@@ -191,9 +191,13 @@ def smartgym_get_workout_detail(ctx: Context, workout_pk: int) -> WorkoutDetail:
     that workout, including exercises since removed from the routine
     (slot_removed=true). Each set has reps, weight_kg (raw stored kg) and weight in
     `weight_unit` (SmartGym's display unit): lb = round(kg / 0.45359237, 1),
-    kg = round(kg, 1). Exercises are listed in the routine's CURRENT slot order, so a
-    later reorder changes the order shown for past workouts. A workout with no logged
-    sets returns exercises=[] and a warning; an unknown workout_pk is an error.
+    kg = round(kg, 1). A weight of 0.0 means bodyweight OR a weight that was never
+    entered; the data can't tell which, so don't assume either. Exercises are listed in
+    the routine's CURRENT slot order (SmartGym stores no per-workout order), live slots
+    first, then removed slots; a later reorder changes the order shown for past workouts.
+    Exercises with no logged sets are omitted: the data can't distinguish "skipped" from
+    "not planned", so absence from this list means only "no sets logged". A workout with
+    no logged sets returns exercises=[] and a warning; an unknown workout_pk is an error.
     """
     app: AppContext = ctx.request_context.lifespan_context
     with app.lock:
