@@ -671,3 +671,40 @@ def test_workout_detail_uses_only_that_workouts_sets(fx, open_ro):
     assert [x.workout_pk for x in ls] == [w2, w2, w1, w1]  # newest workout first
     assert {x.value_pk for x in ls if x.workout_pk == w1} == {old0, s1}
     assert {x.value_pk for x in ls if x.workout_pk == w2} == {new0, s1}
+
+
+# --------------------------------------------------------------------------- #
+# Lead additions after data/integration review (not part of QA's blind pass)
+# --------------------------------------------------------------------------- #
+def test_workout_without_start_date_is_skipped_everywhere(fx, open_ro):
+    """A linked workout with NULL ZSTARTDATE must not break get_routine."""
+    r = fx.routine("ZZ-QA null start")
+    ue = fx.slot(r, 0)
+    good = fx.value(ue, 0, 8, 60.0, added=date(2026, 8, 10))
+    w_ok = fx.workout(r, datetime(2026, 8, 10, 18, 0), [good])
+    w_null = fx.workout(r, datetime(2026, 8, 12, 18, 0), [good])
+    fx.conn.execute("UPDATE ZWORKOUT SET ZSTARTDATE = NULL WHERE Z_PK = ?", (w_null,))
+    fx.commit()
+    conn = open_ro()
+
+    detail = queries.get_routine(conn, r, history_depth=5)
+    assert [s.workout_pk for s in exercise(detail, ue).sessions] == [w_ok]
+    with pytest.raises(queries.WorkoutNotFound, match="no start date"):
+        queries.get_workout_detail(conn, w_null)
+
+
+def test_removed_slots_sort_after_live_slots(fx, open_ro):
+    """PO ruling: soft-deleted slots come after live slots, by their last ZINDEX."""
+    r = fx.routine("ZZ-QA removed order")
+    live_late = fx.slot(r, 3)
+    removed_early = fx.slot(r, 0, removed=True)
+    a = fx.value(live_late, 0, 10, 20.0, added=date(2026, 8, 20))
+    b = fx.value(removed_early, 0, 10, 20.0, added=date(2026, 8, 20))
+    w = fx.workout(r, datetime(2026, 8, 20, 18, 0), [a, b])
+    fx.commit()
+
+    wd = queries.get_workout_detail(open_ro(), w)
+    assert [(e.ue_pk, e.slot_removed) for e in wd.exercises] == [
+        (live_late, False),
+        (removed_early, True),
+    ]

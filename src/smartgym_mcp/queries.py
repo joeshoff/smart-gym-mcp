@@ -151,7 +151,9 @@ def logged_sets(
 ) -> list[LoggedSet]:
     """Every (workout, set) pair via Z_11SETSDONE. Ordered newest workout first
     (ZSTARTDATE DESC, workout_pk DESC), then slot_index, ue_pk, set_no, value_pk."""
-    where = ["1"]
+    # A workout without a start date isn't a finished session and has no date to report;
+    # get_workout_history and get_workout_detail skip it too, so all three agree.
+    where = ["w.ZSTARTDATE IS NOT NULL"]
     params: list[int] = []
     for column, keys in (("w.Z_PK", workout_pks), ("ue.Z_PK", ue_pks)):
         if keys is None:
@@ -429,9 +431,16 @@ def get_workout_detail(
         conn, "w.Z_PK = ? AND w.ZSTARTDATE IS NOT NULL", [int(workout_pk)]
     )
     if not rows:
+        exists = conn.execute(
+            "SELECT 1 FROM ZWORKOUT WHERE Z_PK = ?", (int(workout_pk),)
+        ).fetchone()
+        reason = (
+            f"Workout {workout_pk} has no start date, so it isn't a completed session."
+            if exists
+            else f"No workout with workout_pk={workout_pk}."
+        )
         raise WorkoutNotFound(
-            f"No workout with workout_pk={workout_pk}. "
-            "Use smartgym_get_workout_history to list workouts and their workout_pk."
+            f"{reason} Use smartgym_get_workout_history to list workouts and their workout_pk."
         )
     meta = rows[0]
 
