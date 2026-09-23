@@ -192,7 +192,9 @@ def smartgym_get_workout_detail(ctx: Context, workout_pk: int) -> WorkoutDetail:
     (slot_removed=true). Each set has reps, weight_kg (raw stored kg) and weight in
     `weight_unit` (SmartGym's display unit): lb = round(kg / 0.45359237, 1),
     kg = round(kg, 1). A weight of 0.0 means bodyweight OR a weight that was never
-    entered; the data can't tell which, so don't assume either. Exercises are listed in
+    entered; the data can't tell which, so don't assume either. A set deleted or unchecked
+    during the workout still appears (SmartGym itself counts it in History), and because
+    deletion renumbers, two sets can share a set_no. Exercises are listed in
     the routine's CURRENT slot order (SmartGym stores no per-workout order), live slots
     first, then removed slots; a later reorder changes the order shown for past workouts.
     Exercises with no logged sets are omitted: the data can't distinguish "skipped" from

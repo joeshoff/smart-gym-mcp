@@ -75,10 +75,13 @@ Evidence (queries + output, DB copy with WAL, `mode=ro`):
   has no ordering column and lists exactly the slots with ≥1 linked set. Detail order is current
   slot `ZINDEX` (live slots first, then removed slots); an exercise with no logged sets is omitted,
   because "skipped" and "not planned" can't be told apart.
-- **Unverified assumption (PO-accepted 2026-09-23):** a set deleted or unchecked *during* a
-  workout is unlinked by the app, so it never shows as history. No such deletion exists in the
-  data to confirm it. A follow-up observation on a `ZZ-` routine is planned; if those sets stay
-  linked, that's a new Issue.
+- **Sets deleted or unchecked mid-workout stay linked** (observed 2026-09-23 on a `ZZ-test`
+  routine): the deleted row is soft-deleted but keeps its `Z_11SETSDONE` link, and SmartGym's own
+  History counts both, so link membership matches the app. Deletion renumbers `ZINDEX`, so two
+  linked sets in one workout can share a set number.
+- **A history can exist without a `ZWORKOUT`** (seen once: the `ZZ-test` session, duration "-" in
+  the app). The resolver starts from `ZWORKOUT`, so such a session is invisible to every read
+  tool. Open PO question on Issue #7.
 
 ## Architecture invariants
 Module layering + per-tool composition table: [spec 02 Part E](specs/02-write-and-sync.md).
