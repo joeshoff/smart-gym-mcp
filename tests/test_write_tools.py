@@ -348,13 +348,16 @@ def test_update_routine_edits_fields(temp_db_cfg: Config) -> None:
 def test_update_routine_rejects_name_collision(temp_db_cfg: Config) -> None:
     routine_pk, _ = _seed_routine(temp_db_cfg)
     with db.open_rw_connection(temp_db_cfg) as conn:
-        other = str(
-            conn.execute(
-                "SELECT ZNAME FROM ZROUTINE WHERE ZDATEREMOVED IS NULL AND ZHIDDEN = 0 "
-                "AND Z_PK != ? LIMIT 1",
-                (routine_pk,),
-            ).fetchone()[0]
-        )
+        other = conn.execute(
+            "SELECT ZNAME FROM ZROUTINE WHERE ZDATEREMOVED IS NULL AND ZHIDDEN = 0 "
+            "AND Z_PK != ? AND ZNAME IS NOT NULL LIMIT 1",
+            (routine_pk,),
+        ).fetchone()
+
+        if other is None:
+            pytest.skip("No other named active routine available for collision test")
+
+        other = str(other[0])
         with pytest.raises(WriteValidationError, match="already exists"):
             writes.plan_update_routine(conn, routine_pk, name=other.upper())
         # Renaming to its own name is not a collision.

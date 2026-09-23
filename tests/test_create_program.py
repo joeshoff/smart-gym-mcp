@@ -72,10 +72,15 @@ def test_unresolvable_lists_candidates(ro_conn: sqlite3.Connection) -> None:
 # --------------------------------------------------------------------------- #
 def test_plan_rejects_active_name_collision(ro_conn: sqlite3.Connection) -> None:
     existing = ro_conn.execute(
-        "SELECT ZNAME FROM ZROUTINE WHERE ZDATEREMOVED IS NULL AND ZHIDDEN = 0 LIMIT 1"
-    ).fetchone()[0]
+        "SELECT ZNAME FROM ZROUTINE "
+        "WHERE ZDATEREMOVED IS NULL AND ZHIDDEN = 0 AND ZNAME IS NOT NULL LIMIT 1"
+    ).fetchone()
+
+    if existing is None:
+        pytest.skip("No named active routine available for collision test")
+
     with pytest.raises(ProgramValidationError, match="already exists"):
-        writes.plan_program(ro_conn, [_spec(name=existing)])
+        writes.plan_program(ro_conn, [_spec(name=existing[0])])
 
 
 def test_plan_rejects_duplicate_names_in_program(ro_conn: sqlite3.Connection) -> None:

@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 class RoutineSummary(BaseModel):
     z_pk: int
-    name: str
+    name: str | None
     days: str | None
     hidden: bool
     has_synced: bool = Field(
@@ -46,7 +46,7 @@ class ExerciseEntry(BaseModel):
 
 class RoutineDetail(BaseModel):
     z_pk: int
-    name: str
+    name: str | None
     days: str | None
     hidden: bool
     has_synced: bool = Field(
