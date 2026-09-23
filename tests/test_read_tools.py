@@ -63,7 +63,7 @@ def test_get_routine_shape(ro):
         if e.sessions:
             latest = e.sessions[0].sets
             assert e.top_set in latest
-            assert e.total_volume == pytest.approx(sum(s.reps * s.weight_kg for s in latest))
+            assert e.total_volume == pytest.approx(sum(s.reps * s.weight for s in latest))
 
 
 def test_workout_history_dedup_and_pagination(ro):

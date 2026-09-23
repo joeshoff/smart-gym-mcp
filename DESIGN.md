@@ -49,6 +49,40 @@ Each fact's full evidence lives in the linked spec; this is the canonical short 
   (archived state is server-side, `routine/archive/` only → no archive tool); routine
   soft-delete propagates.
 
+## Verified facts: logged-set history (2026-09-23) — settled, don't re-derive
+Evidence (queries + output, DB copy with WAL, `mode=ro`):
+[joeshoff/Hybrid-Athletic-Trainer#7](https://github.com/joeshoff/Hybrid-Athletic-Trainer/issues/7).
+
+- **Set → workout is an explicit key path:** `ZWORKOUT.Z_PK ← ZHISTORY.ZWORKOUT` (inverse
+  `ZWORKOUT.ZHISTORY`) → `Z_11SETSDONE (Z_11HISTORIES1, Z_21SETSDONE)` → `ZVALUES.Z_PK`.
+  `Z_11SETSDONE` is Core Data's join table for `History.setsDone` (entity 21 = `Values`).
+  `queries.logged_sets` is the only code that resolves it; every history read goes through it.
+- **"Logged" = linked through `Z_11SETSDONE`.** `ZDATELOGGED`/`ZPRECISEDATELOGGED` are NULL on
+  every row, logged or not, so the "template sets have `ZDATELOGGED IS NULL`" fact above doesn't
+  tell templates apart. An unlinked row is the routine's prescription, never history.
+- **Unchanged repeated sets share one row.** A `ZVALUES` row stays linked to every workout it was
+  done in. When a set's value changes, the app writes a new row and soft-deletes the old one, which
+  **stays linked** to its workout. So linked soft-deleted rows are history; never filter them out.
+- **The app rewrites a routine's prescription when a workout is saved, across routines.** Every
+  routine slot for the same catalog exercise gets overwritten with the numbers just lifted
+  (observed: Lower A's 9/22 workout rewrote Lower B's leg curl). This is why `ZDATEADDED`-day
+  grouping was wrong, and why removal timestamps say nothing about the removed row's own workout.
+- **Weights are stored in kg** (`ZTHIRDVALUE`). The display unit is SmartGym's preference
+  `currentWeightUnitKey` (`2` = lb, observed). lb = `round(kg / 0.45359237, 1)`; every logged set
+  lands within 0.0002 lb of the app's value. `SMARTGYM_WEIGHT_UNIT` overrides. A weight of 0.0 can
+  mean bodyweight or never entered (SmartGym locks a workout once it ends).
+- **No per-workout exercise order and no skip record.** `Z_11EXERCISES` (History ⇄ UniqExercise)
+  has no ordering column and lists exactly the slots with ≥1 linked set. Detail order is current
+  slot `ZINDEX` (live slots first, then removed slots); an exercise with no logged sets is omitted,
+  because "skipped" and "not planned" can't be told apart.
+- **Sets deleted or unchecked mid-workout stay linked** (observed 2026-09-23 on a `ZZ-test`
+  routine): the deleted row is soft-deleted but keeps its `Z_11SETSDONE` link, and SmartGym's own
+  History counts both, so link membership matches the app. Deletion renumbers `ZINDEX`, so two
+  linked sets in one workout can share a set number.
+- **A history can exist without a `ZWORKOUT`** (seen once: the `ZZ-test` session, duration "-" in
+  the app). The resolver starts from `ZWORKOUT`, so such a session is invisible to every read
+  tool. Open PO question on Issue #7.
+
 ## Architecture invariants
 Module layering + per-tool composition table: [spec 02 Part E](specs/02-write-and-sync.md).
 

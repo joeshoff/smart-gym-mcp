@@ -34,6 +34,7 @@ from .models import (
     SetSpec,
     UpdateExerciseResult,
     UpdateRoutineResult,
+    WorkoutDetail,
     WorkoutHistoryResult,
 )
 
@@ -137,13 +138,17 @@ def smartgym_get_routine(ctx: Context, routine: str, history_depth: int = 5) -> 
     """Get a routine's exercises in order with rest time, note, and recent logged sets.
 
     `routine` is a routine name (case-insensitive, partial allowed) OR a z_pk. Each
-    exercise includes up to `history_depth` recent sessions as per-set arrays
-    (reps + weight_kg; 0.0 weight means bodyweight/untracked) plus the latest session's
-    top set and total volume. Ambiguous names raise an error listing candidate z_pks.
+    exercise includes up to `history_depth` recent sessions, newest first. A session is
+    one WORKOUT (workout_pk), dated by the workout's local start date, and holds only
+    the sets actually logged in that workout for this routine (the prescription is not
+    history). Each set has reps, weight_kg (raw stored kg) and weight in `weight_unit`
+    (SmartGym's display unit; lb = round(kg / 0.45359237, 1)); 0 means bodyweight
+    OR never entered (the data can't tell which). Also the latest session's top set and total volume (in
+    weight_unit). Ambiguous names raise an error listing candidate z_pks.
     """
     app: AppContext = ctx.request_context.lifespan_context
     with app.lock:
-        return queries.get_routine(app.ro, routine, history_depth)
+        return queries.get_routine(app.ro, routine, history_depth, app.cfg.weight_unit)
 
 
 @mcp.tool(annotations=_read_only("Get workout history"))
@@ -174,6 +179,31 @@ def smartgym_get_workout_history(
             limit=limit,
             offset=offset,
         )
+
+
+@mcp.tool(annotations=_read_only("Get workout detail"))
+def smartgym_get_workout_detail(ctx: Context, workout_pk: int) -> WorkoutDetail:
+    """Get one workout's logged sets — the Trainer's post-workout read.
+
+    `workout_pk` comes from smartgym_get_workout_history. Returns the workout's routine,
+    local start time, duration, calories and heart rate (same values as
+    smartgym_get_workout_history), plus every exercise with at least one set logged in
+    that workout, including exercises since removed from the routine
+    (slot_removed=true). Each set has reps, weight_kg (raw stored kg) and weight in
+    `weight_unit` (SmartGym's display unit): lb = round(kg / 0.45359237, 1),
+    kg = round(kg, 1). A weight of 0.0 means bodyweight OR a weight that was never
+    entered; the data can't tell which, so don't assume either. A set deleted or unchecked
+    during the workout still appears (SmartGym itself counts it in History), and because
+    deletion renumbers, two sets can share a set_no. Exercises are listed in
+    the routine's CURRENT slot order (SmartGym stores no per-workout order), live slots
+    first, then removed slots; a later reorder changes the order shown for past workouts.
+    Exercises with no logged sets are omitted: the data can't distinguish "skipped" from
+    "not planned", so absence from this list means only "no sets logged". A workout with
+    no logged sets returns exercises=[] and a warning; an unknown workout_pk is an error.
+    """
+    app: AppContext = ctx.request_context.lifespan_context
+    with app.lock:
+        return queries.get_workout_detail(app.ro, workout_pk, app.cfg.weight_unit)
 
 
 @mcp.tool(annotations=_read_only("Get equipment"))

@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
+
+WeightUnit = Literal["lb", "kg"]
 
 
 class RoutineSummary(BaseModel):
@@ -25,11 +29,17 @@ class RoutineListResult(BaseModel):
 class SetEntry(BaseModel):
     set_no: int
     reps: int
-    weight_kg: float  # 0.0 = bodyweight / untracked, returned as-is
+    weight_kg: float  # raw stored value (kg); 0.0 = bodyweight OR never entered
+    weight: float = Field(
+        description="weight_kg in the response's weight_unit, rounded to 0.1"
+    )
 
 
 class SessionEntry(BaseModel):
-    date: str
+    """One workout's logged sets for one exercise slot."""
+
+    workout_pk: int
+    date: str  # the workout's local start date, YYYY-MM-DD
     sets: list[SetEntry]
 
 
@@ -39,9 +49,9 @@ class ExerciseEntry(BaseModel):
     exercise_name: str
     rest_seconds: int | None
     note: str | None
-    sessions: list[SessionEntry]  # most recent first, up to history_depth
+    sessions: list[SessionEntry]  # one per workout, newest first, up to history_depth
     top_set: SetEntry | None  # heaviest set of the latest session
-    total_volume: float  # sum(reps*weight) of the latest session
+    total_volume: float  # sum(reps*weight) of the latest session, in weight_unit
 
 
 class RoutineDetail(BaseModel):
@@ -53,6 +63,7 @@ class RoutineDetail(BaseModel):
         description="False = pending push to the SmartGym backend (fires on next app launch)"
     )
     last_updated_by_ai: str | None
+    weight_unit: WeightUnit
     exercises: list[ExerciseEntry]
 
 
@@ -60,6 +71,7 @@ class WorkoutSession(BaseModel):
     workout_pk: int
     date: str
     routine: str | None
+    routine_z_pk: int | None
     duration_min: int
     calories: int | None
     avg_hr: int | None
@@ -73,6 +85,32 @@ class WorkoutHistoryResult(BaseModel):
     has_more: bool
     next_offset: int | None
     sessions: list[WorkoutSession]
+
+
+class WorkoutExercise(BaseModel):
+    ue_pk: int
+    exercise_z_pk: int
+    exercise_name: str
+    index: int | None
+    slot_removed: bool = Field(
+        description="True = the slot was later removed from the routine; its sets still count"
+    )
+    sets: list[SetEntry]
+
+
+class WorkoutDetail(BaseModel):
+    workout_pk: int
+    routine_z_pk: int | None
+    routine_name: str | None
+    start_local: str  # "YYYY-MM-DD HH:MM:SS" local
+    date: str  # "YYYY-MM-DD" local
+    duration_min: int
+    calories: int | None
+    avg_hr: int | None
+    max_hr: int | None
+    weight_unit: WeightUnit
+    exercises: list[WorkoutExercise]
+    warnings: list[str]
 
 
 class EquipmentItem(BaseModel):
